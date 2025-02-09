@@ -1,23 +1,10 @@
 [theme]
-primaryColor = "#FF4B4B"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#FAFAFA"
+primaryColor = "#4CAF50"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F0F0"
+textColor = "#000000"
 font = "sans serif"
 
 [server]
-enableCORS = true
-enableXsrfProtection = true
-
-[browser]
-gatherUsageStats = false
-
-[deprecation]
-showfileUploaderEncoding = false
-
-[global]
-# Automatically rerun when files change
-developmentMode = false
-
-[logger]
-level = "info"
+# Optional: If you need to run on a specific port
+# port = 8501
