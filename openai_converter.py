@@ -14,7 +14,7 @@ from openai import OpenAI
 
 class IVRPromptLibrary:
     """Enhanced prompting for exact IVR diagram reproduction"""
-    
+
     SYSTEM_PROMPT = """You are a specialized converter focused on creating EXACT, VERBATIM Mermaid.js flowchart representations of IVR call flow diagrams. Your task is to reproduce the input diagram with 100% accuracy, maintaining all text, connections, and flow logic exactly as shown.
 
 CRITICAL REQUIREMENTS:
@@ -76,7 +76,7 @@ OUTPUT REQUIREMENTS:
 
 class ImageProcessor:
     """Enhanced image processing capabilities"""
-    
+
     @staticmethod
     def process_image(image_path: str, max_size: tuple = (1000, 1000)) -> Image.Image:
         """Process and optimize image for conversion"""
@@ -84,16 +84,16 @@ class ImageProcessor:
             # Convert to RGB if necessary
             if img.mode not in ('RGB', 'L'):
                 img = img.convert('RGB')
-            
+
             # Resize if too large
             if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
                 img.thumbnail(max_size, Image.Resampling.LANCZOS)
-            
+
             # Enhance contrast for better text recognition
             from PIL import ImageEnhance
             enhancer = ImageEnhance.Contrast(img)
             img = enhancer.enhance(1.2)
-            
+
             return img
 
     @staticmethod
@@ -106,18 +106,18 @@ class ImageProcessor:
 
 class FlowchartConverter:
     """Enhanced OpenAI-powered flowchart converter"""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         """Initialize converter with API key"""
         self.api_key = (
-            api_key or 
-            st.secrets.get("OPENAI_API_KEY") or 
+            api_key or
+            st.secrets.get("OPENAI_API_KEY") or
             os.getenv("OPENAI_API_KEY")
         )
-        
+
         if not self.api_key:
             raise ValueError("OpenAI API key not found")
-        
+
         self.client = OpenAI(api_key=self.api_key)
         self.logger = logging.getLogger(__name__)
         self.image_processor = ImageProcessor()
@@ -125,10 +125,10 @@ class FlowchartConverter:
     def convert_diagram(self, file_path: str) -> str:
         """
         Convert flow diagram to Mermaid syntax
-        
+
         Args:
             file_path: Path to diagram file
-            
+
         Returns:
             str: Mermaid diagram syntax
         """
@@ -136,24 +136,24 @@ class FlowchartConverter:
             # Validate file
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"File not found: {file_path}")
-            
+
             file_ext = os.path.splitext(file_path)[1].lower()
             supported_formats = {'.pdf', '.png', '.jpg', '.jpeg'}
-            
+
             if file_ext not in supported_formats:
                 raise ValueError(f"Unsupported format. Supported: {supported_formats}")
-            
+
             # Process image
             if file_ext == '.pdf':
                 image = self.image_processor.pdf_to_image(file_path)
             else:
                 image = self.image_processor.process_image(file_path)
-            
+
             # Convert to base64
             buffered = io.BytesIO()
             image.save(buffered, format="PNG")
             base64_image = base64.b64encode(buffered.getvalue()).decode()
-            
+
             # Make API call
             response = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -181,20 +181,20 @@ class FlowchartConverter:
                 max_tokens=4096,
                 temperature=0.1  # Low temperature for more precise output
             )
-            
+
             # Extract and clean Mermaid code
             mermaid_text = self._clean_mermaid_code(
                 response.choices[0].message.content
             )
-            
+
             # Validate syntax
             if not self._validate_mermaid_syntax(mermaid_text):
                 # Try recovery with simpler conversion
                 self.logger.warning("Initial conversion failed validation, attempting recovery")
                 return self._attempt_recovery_conversion(base64_image)
-            
+
             return mermaid_text
-            
+
         except Exception as e:
             self.logger.error(f"Conversion failed: {str(e)}")
             raise RuntimeError(f"Diagram conversion error: {str(e)}")
@@ -202,14 +202,14 @@ class FlowchartConverter:
     def _clean_mermaid_code(self, raw_text: str) -> str:
         """Clean and format Mermaid code"""
         # Extract code from markdown blocks if present
-        code_match = re.search(r'```(?:mermaid)?\n(.*?)```', raw_text, re.DOTALL)
+        code_match = re.search(r'```mermaid\n(.*?)```', raw_text, re.DOTALL)
         if code_match:
             raw_text = code_match.group(1)
-        
+
         # Ensure proper flowchart definition
         if not raw_text.strip().startswith('flowchart TD'):
             raw_text = f'flowchart TD\n{raw_text}'
-        
+
         # Clean up whitespace and empty lines
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
         return '\n'.join(lines)
@@ -221,7 +221,7 @@ class FlowchartConverter:
             r'\w+\s*[\["{\(]',    # Must have at least one node
             r'-->'                # Must have at least one connection
         ]
-        
+
         return all(re.search(pattern, mermaid_text) for pattern in required_elements)
 
     def _attempt_recovery_conversion(self, base64_image: str) -> str:
@@ -253,11 +253,11 @@ class FlowchartConverter:
                 max_tokens=4096,
                 temperature=0.3  # Slightly higher temperature for recovery
             )
-            
+
             return self._clean_mermaid_code(
                 response.choices[0].message.content
             )
-            
+
         except Exception as e:
             raise RuntimeError(f"Recovery conversion failed: {str(e)}")
 
