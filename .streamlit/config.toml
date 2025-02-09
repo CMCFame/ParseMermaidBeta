@@ -1,0 +1,23 @@
+[theme]
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+font = "sans serif"
+
+[server]
+enableCORS = true
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[deprecation]
+showfileUploaderEncoding = false
+
+[global]
+# Automatically rerun when files change
+developmentMode = false
+
+[logger]
+level = "info"
