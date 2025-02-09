@@ -1,162 +1,145 @@
 """
-openai_ivr_converter.py
-
-Refined module for converting Mermaid diagrams (or parsed Mermaid data)
-into a custom IVR JavaScript configuration. We provide a structured approach
-for 1:1 mapping, reducing GPT's tendency to summarize or omit data.
+Direct IVR conversion using OpenAI with specific IVR format handling
 """
-
+from typing import Dict, List, Any
+from openai import OpenAI
 import json
 import logging
-from typing import Dict
 
-# If using official openai python library:
-import openai
-
-from parse_mermaid import parse_mermaid
-
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
-SYSTEM_PROMPT_IVR = """You are an expert IVR system developer. 
-You MUST produce a 1-to-1 mapping from each parsed Mermaid node to an IVR config object, preserving every bit of text.
+class OpenAIIVRConverter:
+    def __init__(self, api_key: str):
+        self.client = OpenAI(api_key=api_key)
 
-Requirements for the IVR config array:
-1. The final output must be valid JavaScript in the form:
+    def convert_to_ivr(self, mermaid_code: str) -> str:
+        """Convert Mermaid diagram to IVR configuration using GPT-4"""
+        
+        prompt = f"""You are an expert IVR system developer. Convert this Mermaid flowchart into a complete IVR JavaScript configuration following these exact requirements:
 
-module.exports = [
-  {...},
-  {...},
-  ...
-];
+        The IVR system requires specific configuration format:
 
-2. Each object must have a unique "label" property that maps to the Mermaid node ID (e.g. A, B, C).
-3. Include a "log" or "playPrompt" array that uses the entire raw_text from the node. 
-   - If there's a long text, you can store it in "log" or split it among multiple "playPrompt" items.
-4. If there's an arrow from Node A to Node B labeled "Press 1", then in the A node's config, you must handle that branch, e.g.:
+        1. Node Structure:
+           - Each node must have a unique "label" (node identifier)
+           - "log" property for documentation/logging
+           - "playPrompt" array with callflow IDs
+           - Optional properties based on node type:
+             * getDigits: For input collection
+             * branch: For conditional navigation
+             * goto: For direct transitions
+             * maxLoop: For retry limits
+             * gosub: For subroutine calls
+             * nobarge: For non-interruptible messages
 
-{
-   "label": "A",
-   "log": "Some text",
-   "branch": [
-     { "condition": "digits=='1'", "goto": "B" }
-   ]
-}
+        2. Audio Prompts:
+           Use exact callflow IDs:
+           - 1001: Welcome/initial message
+           - 1008: PIN entry request
+           - 1009: Invalid input/retry
+           - 1010: Timeout message
+           - 1167: Accept response
+           - 1021: Decline response
+           - 1266: Qualified no response
+           - 1274: Electric callout info
+           - 1019: Callout reason
+           - 1232: Location information
+           - 1265: Wait message
+           - 1017: Not home message
+           - 1316: Availability check
+           - 1029: Goodbye message
+           - 1351: Error message
 
-5. Do NOT omit any text or branching details. 
-6. Return only the JavaScript code starting with module.exports = [ and ending with ]; 
-   No extra commentary or markdown fences.
-7. Do NOT rename or summarize node text. Keep punctuation, numbers, parentheses, line breaks (<br/>) exact.
+        3. Input Handling:
+           For getDigits nodes:
+           {{
+             "numDigits": <number>,
+             "maxTries": <number>,
+             "validChoices": "1|2|3",
+             "errorPrompt": "callflow:1009",
+             "timeoutPrompt": "callflow:1010"
+           }}
 
-If anything is unclear, ask for clarification. Otherwise, produce the final code directly.
-"""
+        4. Call Flow Control:
+           - Use "branch" for conditional paths
+           - Use "goto" for direct transitions
+           - Use "gosub" for subroutines like SaveCallResult
+           - Include retry logic with maxLoop
+           - Handle timeouts and errors
 
+        5. Standard Response Codes:
+           SaveCallResult parameters:
+           - Accept: [1001, "Accept"]
+           - Decline: [1002, "Decline"]
+           - Not Home: [1006, "NotHome"]
+           - Qualified No: [1145, "QualNo"]
+           - Error: [1198, "Error Out"]
 
-def structured_nodes_to_ivr(parsed_data: Dict, api_key: str) -> str:
-    """
-    Uses GPT to convert the *structured* Mermaid data (nodes, edges, etc.)
-    into a 1:1 IVR JavaScript config.
+        Here's the Mermaid diagram to convert:
 
-    Args:
-        parsed_data: The dictionary from parse_mermaid() containing 'nodes' and 'edges'.
-        api_key: OpenAI API key.
+        {mermaid_code}
 
-    Returns:
-        A string containing the final "module.exports = [ ... ];" code.
-    """
-    openai.api_key = api_key
+        Generate a complete IVR configuration that exactly matches this flow pattern.
+        Return only the JavaScript code in the format:
+        module.exports = [ ... ];"""
 
-    # Prepare a JSON representation of the parsed data to feed GPT.
-    # We can sanitize or limit the content if needed, but ideally we keep it all.
-    structured_json = {
-        "nodes": [],
-        "edges": []
-    }
-
-    # Flatten nodes into a list for easier reading by GPT
-    for node_id, node_obj in parsed_data["nodes"].items():
-        structured_json["nodes"].append({
-            "id": node_id,
-            "raw_text": node_obj.raw_text,
-            "node_type": node_obj.node_type.name  # e.g. DECISION, ACTION, etc.
-        })
-
-    # Edges as a list
-    for edge in parsed_data["edges"]:
-        structured_json["edges"].append({
-            "from_id": edge.from_id,
-            "to_id": edge.to_id,
-            "label": edge.label
-        })
-
-    # Convert to a JSON string for GPT
-    # We can embed it directly in the user prompt.
-    parsed_data_str = json.dumps(structured_json, indent=2)
-
-    user_prompt = f"""
-Below is the structured Mermaid data (nodes and edges).
-Convert each node into an IVR config object, preserving all text in raw_text
-and referencing edges for branches. Please produce only the JavaScript code 
-in the specified format.
-
-Parsed Data (JSON):
-{parsed_data_str}
-"""
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT_IVR
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt
-                }
-            ],
-            temperature=0.0,
-            max_tokens=3000
-        )
-        ivr_code = response.choices[0].message.content.strip()
-
-        # Basic validation check
-        if not ivr_code.startswith("module.exports = [") or not ivr_code.endswith("];"):
-            raise ValueError("GPT returned code that does not start/end with module.exports = [ ... ];")
-
-        # Attempt to parse the JSON inside "module.exports = [ ... ];" to ensure validity
-        # We'll slice out the array portion.
-        inner_part = ivr_code[len("module.exports = "):]
-        inner_part = inner_part.strip("; \n")
-        # Now inner_part should be "[ {...}, {...} ]"
-        # We'll try to parse it as JSON
         try:
-            _ = json.loads(inner_part)
-        except json.JSONDecodeError as je:
-            logger.warning(f"Could not parse returned IVR code as JSON. Error: {je}")
-            # We can either raise or allow it and show partial code
-            raise ValueError("IVR code is not valid JSON inside the array.")
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert IVR system developer specialized in creating precise IVR configurations with specific callflow IDs and control structures."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,  # Low temperature for consistent output
+                max_tokens=4000
+            )
 
-        return ivr_code
+            # Extract and clean the response
+            ivr_code = response.choices[0].message.content.strip()
+            
+            # Extract just the JavaScript code
+            if "module.exports = [" in ivr_code:
+                start_idx = ivr_code.find("module.exports = [")
+                end_idx = ivr_code.rfind("];") + 2
+                ivr_code = ivr_code[start_idx:end_idx]
 
-    except Exception as e:
-        logger.error(f"IVR conversion failed: {str(e)}")
-        # Return a fallback code snippet, or re-raise
-        raise RuntimeError(f"structured_nodes_to_ivr error: {str(e)}")
+            # Validate basic structure
+            if not (ivr_code.startswith("module.exports = [") and ivr_code.endswith("];")):
+                raise ValueError("Invalid IVR code format generated")
 
+            # Basic validation of node structure
+            try:
+                nodes = json.loads(ivr_code[16:-1])  # Remove module.exports = and ;
+                if not isinstance(nodes, list):
+                    raise ValueError("Generated code is not a valid node array")
+                for node in nodes:
+                    if not isinstance(node, dict) or 'label' not in node:
+                        raise ValueError("Invalid node structure")
+            except json.JSONDecodeError:
+                raise ValueError("Generated code is not valid JSON")
+
+            return ivr_code
+
+        except Exception as e:
+            logger.error(f"IVR conversion failed: {str(e)}")
+            # Return a basic error handler node
+            return '''module.exports = [
+  {
+    "label": "Problems",
+    "log": "Error handler",
+    "playPrompt": ["callflow:1351"],
+    "goto": "Goodbye"
+  }
+];'''
 
 def convert_mermaid_to_ivr(mermaid_code: str, api_key: str) -> str:
-    """
-    A convenience function to parse Mermaid text, then feed the structured data to GPT.
-    This mimics the old approach but ensures 1:1 mapping via the structured data pipeline.
-
-    Args:
-        mermaid_code: The raw Mermaid code to convert.
-        api_key: OpenAI API key.
-
-    Returns:
-        JavaScript string with module.exports = [ ... ];
-    """
-    parsed = parse_mermaid(mermaid_code)
-    return structured_nodes_to_ivr(parsed, api_key)
+    """Wrapper function for Mermaid to IVR conversion"""
+    converter = OpenAIIVRConverter(api_key)
+    return converter.convert_to_ivr(mermaid_code)

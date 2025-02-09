@@ -1,27 +1,50 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
 *.egg
+
+# Virtual Environment
+.env
+.venv
 env/
-.venv/
-*.log
-temp/
-tmp/
+venv/
+ENV/
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Temporary files
+*.tmp
+temp/
+tmp/
 
 # System
 .DS_Store
 Thumbs.db
 
-# Streamlit secrets
-.streamlit/secrets.toml
-
-# OS/Editor swap files
-*.swp
-*.swo
+# Logs
+*.log
+logs/
