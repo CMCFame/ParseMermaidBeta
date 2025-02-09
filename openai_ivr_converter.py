@@ -16,40 +16,39 @@ class OpenAIIVRConverter:
 
     def convert_to_ivr(self, mermaid_code: str) -> str:
         """Convert Mermaid diagram to IVR configuration using GPT-4"""
-        
-        prompt = f"""You are an expert IVR system developer. Convert this Mermaid flowchart into a complete IVR JavaScript configuration following these exact requirements:
 
-        The IVR system requires specific configuration format:
+        prompt = f"""
+        You are an expert IVR system developer. Convert this Mermaid flowchart into a complete IVR JavaScript configuration following these exact requirements:
 
         1. Node Structure:
-           - Each node must have a unique "label" (node identifier)
-           - "log" property for documentation/logging
-           - "playPrompt" array with callflow IDs
+           - Each node must have a unique "label" (node identifier).
+           - "log" property for documentation/logging.
+           - "playPrompt" array with callflow IDs.
            - Optional properties based on node type:
-             * getDigits: For input collection
-             * branch: For conditional navigation
-             * goto: For direct transitions
-             * maxLoop: For retry limits
-             * gosub: For subroutine calls
-             * nobarge: For non-interruptible messages
+             * getDigits: For input collection.
+             * branch: For conditional navigation.
+             * goto: For direct transitions.
+             * maxLoop: For retry limits.
+             * gosub: For subroutine calls.
+             * nobarge: For non-interruptible messages.
 
         2. Audio Prompts:
            Use exact callflow IDs:
-           - 1001: Welcome/initial message
-           - 1008: PIN entry request
-           - 1009: Invalid input/retry
-           - 1010: Timeout message
-           - 1167: Accept response
-           - 1021: Decline response
-           - 1266: Qualified no response
-           - 1274: Electric callout info
-           - 1019: Callout reason
-           - 1232: Location information
-           - 1265: Wait message
-           - 1017: Not home message
-           - 1316: Availability check
-           - 1029: Goodbye message
-           - 1351: Error message
+           - 1001: Welcome/initial message.
+           - 1008: PIN entry request.
+           - 1009: Invalid input/retry.
+           - 1010: Timeout message.
+           - 1167: Accept response.
+           - 1021: Decline response.
+           - 1266: Qualified no response.
+           - 1274: Electric callout info.
+           - 1019: Callout reason.
+           - 1232: Location information.
+           - 1265: Wait message.
+           - 1017: Not home message.
+           - 1316: Availability check.
+           - 1029: Goodbye message.
+           - 1351: Error message.
 
         3. Input Handling:
            For getDigits nodes:
@@ -62,11 +61,11 @@ class OpenAIIVRConverter:
            }}
 
         4. Call Flow Control:
-           - Use "branch" for conditional paths
-           - Use "goto" for direct transitions
-           - Use "gosub" for subroutines like SaveCallResult
-           - Include retry logic with maxLoop
-           - Handle timeouts and errors
+           - Use "branch" for conditional paths.
+           - Use "goto" for direct transitions.
+           - Use "gosub" for subroutines like SaveCallResult.
+           - Include retry logic with maxLoop.
+           - Handle timeouts and errors.
 
         5. Standard Response Codes:
            SaveCallResult parameters:
@@ -82,7 +81,8 @@ class OpenAIIVRConverter:
 
         Generate a complete IVR configuration that exactly matches this flow pattern.
         Return only the JavaScript code in the format:
-        module.exports = [ ... ];"""
+        module.exports = [ ... ];
+        """
 
         try:
             response = self.client.chat.completions.create(
@@ -103,7 +103,7 @@ class OpenAIIVRConverter:
 
             # Extract and clean the response
             ivr_code = response.choices[0].message.content.strip()
-            
+
             # Extract just the JavaScript code
             if "module.exports = [" in ivr_code:
                 start_idx = ivr_code.find("module.exports = [")
